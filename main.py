@@ -41,8 +41,8 @@ class SerialBridge(threading.Thread):
 
 
 if __name__ == '__main__':
-    COM1 = "COM2"
-    COM2 = "COM4"
+    COM1 = "COM8"
+    COM2 = "COM7"
     SPEED1 = 38400
     SPEED2 = 38400
     TIMEOUT = 0.1
