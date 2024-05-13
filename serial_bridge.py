@@ -1,6 +1,11 @@
+import sys
 import threading
 import datetime
+import time
+
 import serial
+
+from colors import Colors
 
 
 class SerialBridge(threading.Thread):
@@ -13,6 +18,7 @@ class SerialBridge(threading.Thread):
         self.name = ''
         self.prefix = ''
         self.postfix = ''
+        self.stop_event = threading.Event()
 
     def set_dump(self, enable, name='', prefix='', postfix=''):
         self.dump = enable
@@ -20,8 +26,11 @@ class SerialBridge(threading.Thread):
         self.prefix = prefix
         self.postfix = postfix
 
+    def stop(self):
+        self.stop_event.set()
+
     def run(self):
-        while True:
+        while not self.stop_event.isSet():
             dat = self.ser_from.read(self.chunk)
             if dat:
                 if self.dump:
@@ -41,18 +50,29 @@ class SerialBridge(threading.Thread):
 
 
 if __name__ == '__main__':
-    COM1 = "COM3"
-    COM2 = "COM4"
-    SPEED1 = 38400
-    SPEED2 = 38400
-    TIMEOUT = 0.1
+    COM1 = sys.argv[1] if len(sys.argv) > 1 else "COM3"
+    COM2 = sys.argv[2] if len(sys.argv) > 2 else "COM4"
+    SPEED1 = sys.argv[3] if len(sys.argv) > 3 else "38400"
+    SPEED2 = sys.argv[4] if len(sys.argv) > 4 else SPEED1
+    DUMP = True
 
-    ser1 = serial.Serial(COM1, SPEED1, timeout=TIMEOUT)
-    ser2 = serial.Serial(COM2, SPEED2, timeout=TIMEOUT)
+    ser1 = serial.Serial(COM1, SPEED1, timeout=0.1)
+    ser2 = serial.Serial(COM2, SPEED2, timeout=0.1)
 
     bridge1 = SerialBridge(ser1, ser2)
-    bridge1.set_dump(True, COM1 + " -> " + COM2, "\x1b[31m", "\x1b[0m")
+    bridge1.set_dump(DUMP, COM1 + " -> " + COM2, Colors.GREEN, Colors.RESET)
     bridge1.start()
     bridge2 = SerialBridge(ser2, ser1)
-    bridge2.set_dump(True, COM1 + " <- " + COM2, "\x1b[34m", "\x1b[0m")
+    bridge2.set_dump(DUMP, COM1 + " <- " + COM2, Colors.RED, Colors.RESET)
     bridge2.start()
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+
+    bridge1.stop()
+    bridge1.join()
+    bridge2.stop()
+    bridge2.join()

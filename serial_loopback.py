@@ -1,5 +1,9 @@
+import os
+import sys
 import threading
 import datetime
+import time
+
 import serial
 
 
@@ -12,6 +16,7 @@ class SerialLoopback(threading.Thread):
         self.name = ''
         self.prefix = ''
         self.postfix = ''
+        self.stop_event = threading.Event()
 
     def set_dump(self, enable, name='', prefix='', postfix=''):
         self.dump = enable
@@ -19,8 +24,11 @@ class SerialLoopback(threading.Thread):
         self.prefix = prefix
         self.postfix = postfix
 
+    def stop(self):
+        self.stop_event.set()
+
     def run(self):
-        while True:
+        while not self.stop_event.isSet():
             dat = self.ser.read(self.chunk)
             if dat:
                 if self.dump:
@@ -40,12 +48,16 @@ class SerialLoopback(threading.Thread):
 
 
 if __name__ == '__main__':
-    COM = "COM3"
-    SPEED = 115200
-    TIMEOUT = 0.1
+    COM = sys.argv[1] if len(sys.argv) > 1 else "COM4"
+    SPEED = sys.argv[2] if len(sys.argv) > 2 else "38400"
+    DUMP = sys.argv[3] if len(sys.argv) > 3 else False
 
-    ser = serial.Serial(COM, SPEED, timeout=TIMEOUT)
+    ser = serial.Serial(COM, SPEED, timeout=0.1)
 
     loopback = SerialLoopback(ser)
-    loopback.set_dump(True, f'{COM} received')
-    loopback.start()
+    loopback.set_dump(DUMP, f'{COM} received')
+
+    try:
+        loopback.run()
+    except KeyboardInterrupt:
+        pass
