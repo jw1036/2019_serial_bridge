@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import threading
 import datetime
@@ -30,6 +31,25 @@ class SerialLoopback(threading.Thread):
     def run(self):
         while not self.stop_event.isSet():
             dat = self.ser.read(self.chunk)
+            if dat and dat[:1] == b"\n":
+                dat = dat + self.ser.read(self.chunk)
+                while True:
+                    mo = re.search(br"\n(\w+):(\d+)\n", dat)
+                    if not mo:
+                        break
+
+                    print(mo.string)
+
+                    if mo.group(1) == b"set_speed":
+                        self.ser.baudrate = mo.group(2)
+                    elif mo.group(1) == b"send_chunk":
+                        chunk = bytearray(int(mo.group(2)))
+                        for i in range(len(chunk)):
+                            chunk[i] = i % 256
+                        self.ser.write(chunk)
+
+                    dat = dat.replace(mo.string, b"", 1)
+
             if dat:
                 if self.dump:
                     self.show_dump(dat)
@@ -49,7 +69,7 @@ class SerialLoopback(threading.Thread):
 
 if __name__ == '__main__':
     COM = sys.argv[1] if len(sys.argv) > 1 else "COM4"
-    SPEED = sys.argv[2] if len(sys.argv) > 2 else "38400"
+    SPEED = sys.argv[2] if len(sys.argv) > 2 else "115200"
     DUMP = sys.argv[3] if len(sys.argv) > 3 else False
 
     ser = serial.Serial(COM, SPEED, timeout=0.1)
